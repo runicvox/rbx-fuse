@@ -46,4 +46,14 @@ function FuseServer.NewService(def: any): Service
   return service
 end
 
+--[=[
+  Returns a registered service by name.
+
+  @param name string -- Service name.
+  @return Service? -- Registered service, if found.
+]=]
+function FuseServer.GetService(name: string): Service?
+  return services[name]
+end
+
 return FuseServer
