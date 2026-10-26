@@ -14,4 +14,12 @@ export type Service = {
   Start: ((self: Service) -> ())?,
 }
 
+export type Controller = {
+  Name: string,
+  Priority: number?,
+  
+  Init: ((self: Controller) -> ())?,
+  Start: ((self: Controller) -> ())?,
+}
+
 return {}
