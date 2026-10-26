@@ -56,4 +56,26 @@ function FuseServer.GetService(name: string): Service?
   return services[name]
 end
 
+--[=[
+  Adds and returns services from descendant modules.
+
+  @param folder Instance -- Parent container.
+  @return {Service} -- Added services.
+]=]
+function FuseServer.AddServices(folder: Instance): {Service}
+  local addedServices: {Service} = {}
+
+  -- collect registered services
+  for _, instance in folder:GetDescendants() do
+    if not instance:IsA("ModuleScript") then
+      continue
+    end
+
+    local service = require(instance)
+    table.insert(addedServices, service)
+  end
+
+  return addedServices
+end
+
 return FuseServer
