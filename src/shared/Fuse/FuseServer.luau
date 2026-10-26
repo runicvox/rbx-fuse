@@ -8,11 +8,22 @@
 local Types = require("./Types")
 type Service = Types.Service
 
+local Promise = require("@game/ReplicatedStorage/Packages/promise")
 local t = require("@game/ReplicatedStorage/Packages/t")
 
 local FuseServer = {}
 
 local services: {[string]: Service} = {}
+
+local started = false
+
+local resolveReady
+local rejectReady
+
+local readyPromise = Promise.new(function(resolve, reject)
+  resolveReady = resolve
+  rejectReady = reject
+end)
 
 local validateService = t.interface({
   Name = t.string,
@@ -76,6 +87,97 @@ function FuseServer.AddServices(folder: Instance): {Service}
   end
 
   return addedServices
+end
+
+--[=[
+  Initialises and starts registered services.
+
+  @return Promise -- Server startup.
+]=]
+function FuseServer.Start()
+  if started then
+    return Promise.reject("FuseServer has already started.")
+  end
+
+  started = true
+
+  local sortedServices = getSortedServices()
+
+  local startup = initServices(sortedServices)
+    :andThen(function()
+      startServices(sortedServices)
+    end)
+
+  startup:andThen(resolveReady, rejectReady)
+
+  return startup
+end
+
+--[=[
+  Resolves when the server lifecycle is ready.
+
+  @return Promise -- Server readiness.
+]=]
+function FuseServer.Ready()
+  return readyPromise
+end
+
+-- PRIVATE FUNCTIONS
+
+--[=[
+  Initialises all registered services.
+
+  @param sortedServices {Service} -- Sorted services.
+  @return Promise -- Initialisation completion.
+]=]
+function initServices(sortedServices: {Service})
+  local promises = {}
+
+  for _, service in sortedServices do
+    if service.Init then
+      table.insert(promises, Promise.try(service.Init, service))
+    end
+  end
+
+  return Promise.all(promises)
+end
+
+--[=[
+  Schedules startup for all registered services.
+
+  @param sortedServices {Service} -- Sorted services.
+]=]
+function startServices(sortedServices: {Service})
+  for _, service in sortedServices do
+    if service.Start then
+      task.spawn(service.Start, service)
+    end
+  end
+end
+
+--[=[
+  Returns services sorted by priority and name.
+
+  @return {Service} -- Sorted services.
+]=]
+function getSortedServices(): {Service}
+  local sortedServices: {Service} = {}
+
+  -- collect registered services
+  for _, service in services do
+    table.insert(sortedServices, service)
+  end
+
+  -- sort by descending priority, then name
+  table.sort(sortedServices, function(service1, service2)
+    if service1.Priority == service2.Priority then
+      return service1.Name < service2.Name
+    end
+
+    return service1.Priority > service2.Priority
+  end)
+
+  return sortedServices
 end
 
 return FuseServer
