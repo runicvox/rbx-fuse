@@ -1,0 +1,10 @@
+[package]
+name = "toriumslurs/jolt"
+version = "4.4.1"
+registry = "https://github.com/UpliftGames/wally-index"
+realm = "shared"
+description = "High-performance binary networking library for Roblox."
+license = "MIT"
+authors = ["ToriumSlurs"]
+
+[dependencies]
