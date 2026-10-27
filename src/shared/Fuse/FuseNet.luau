@@ -9,9 +9,8 @@ local HttpService = game:GetService("HttpService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
-local Promise = require(ReplicatedStorage.Packages.promise)
-
-local Jolt = require("./Jolt")
+local Promise = require("@game/ReplicatedStorage/Packages/promise")
+local Jolt = require("@game/ReplicatedStorage/Packages/jolt")
 
 local Types = require("./Types")
 type Service = Types.Service
