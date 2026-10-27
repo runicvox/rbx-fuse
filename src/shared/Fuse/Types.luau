@@ -1,9 +1,7 @@
-
---[=[
-  @class Types
-
+--[[
   Defines shared Fuse types.
-]=]
+]]
+
 
 export type Service = {
   Name: string,

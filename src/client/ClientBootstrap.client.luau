@@ -1,7 +1,6 @@
-
---[=[
+--[[
   Starts the client framework.
-]=]
+]]
 
 
 local Fuse = require("@game/ReplicatedStorage/Fuse/FuseClient")

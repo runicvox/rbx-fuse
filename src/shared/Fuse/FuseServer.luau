@@ -143,6 +143,8 @@ end
 
   @param sortedServices {Service} -- Sorted services.
   @return Promise -- Initialisation completion.
+  @within FuseServer
+  @private
 ]=]
 function initServices(sortedServices: {Service})
   local promises = {}
@@ -160,6 +162,8 @@ end
   Schedules startup for all registered services.
 
   @param sortedServices {Service} -- Sorted services.
+  @within FuseServer
+  @private
 ]=]
 function startServices(sortedServices: {Service})
   for _, service in sortedServices do
@@ -173,6 +177,8 @@ end
   Returns services sorted by priority and name.
 
   @return {Service} -- Sorted services.
+  @within FuseServer
+  @private
 ]=]
 function getSortedServices(): {Service}
   local sortedServices: {Service} = {}

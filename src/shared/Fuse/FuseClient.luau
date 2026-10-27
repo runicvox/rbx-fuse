@@ -143,6 +143,8 @@ end
 
   @param sortedControllers {Controller} -- Sorted controllers.
   @return Promise -- Initialisation completion.
+  @within FuseClient
+  @private
 ]=]
 function initControllers(sortedControllers: {Controller})
   local promises = {}
@@ -160,6 +162,8 @@ end
   Schedules startup for all registered controllers.
 
   @param sortedControllers {Controller} -- Sorted controllers.
+  @within FuseClient
+  @private
 ]=]
 function startControllers(sortedControllers: {Controller})
   for _, controller in sortedControllers do
@@ -173,6 +177,8 @@ end
   Returns controllers sorted by priority and name.
 
   @return {Controller} -- Sorted controllers.
+  @within FuseClient
+  @private
 ]=]
 function getSortedControllers(): {Controller}
   local sortedControllers: {Controller} = {}
