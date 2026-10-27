@@ -6,7 +6,6 @@
 ]=]
 
 local HttpService = game:GetService("HttpService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local Promise = require("@game/ReplicatedStorage/Packages/promise")
@@ -29,6 +28,7 @@ local proxies: {[string]: any} = {}
 
 local remoteManifest: {[string]: {[string]: string}} = {}
 local registeredServices: {[string]: boolean} = {}
+local registeredMethods: {[string]: boolean} = {}
 
 local startPromise = nil
 
@@ -53,7 +53,6 @@ function FuseNet.NewEvent(remoteName: string)
   assert(type(remoteName) == "string" and remoteName ~= "", "Invalid remote name.")
 
   local remote = remotes[remoteName]
-
   if remote then
     return remote
   end
@@ -82,8 +81,10 @@ function FuseNet.NewMethod(remoteName: string, callback: ((Player, ...any) -> ..
 
   if IS_SERVER then
     assert(type(callback) == "function", "Remote method requires a callback.")
+    assert(not registeredMethods[remoteName], `Remote method "{remoteName}" is already registered.`)
 
     remote.OnInvoke = callback
+    registeredMethods[remoteName] = true
 
     return remote
   end
