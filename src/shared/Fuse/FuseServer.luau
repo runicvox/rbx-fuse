@@ -11,7 +11,11 @@ type Service = Types.Service
 local Promise = require("@game/ReplicatedStorage/Packages/promise")
 local t = require("@game/ReplicatedStorage/Packages/t")
 
+local FuseNet = require("./FuseNet")
+
 local FuseServer = {}
+
+FuseServer.Event = FuseNet.Event
 
 local services: {[string]: Service} = {}
 
