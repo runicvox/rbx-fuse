@@ -107,6 +107,11 @@ function FuseServer.Start()
 
   local sortedServices = getSortedServices()
 
+    -- register client-facing remotes before initialisation
+  for _, service in sortedServices do
+    FuseNet.CreateServiceRemotes(service)
+  end
+
   local startup = initServices(sortedServices)
     :andThen(function()
       startServices(sortedServices)
