@@ -103,6 +103,7 @@ end
 
   @return Promise -- Server startup.
 ]=]
+
 function FuseClient.Start()
   if started then
     return Promise.reject("FuseClient has already started.")
@@ -112,7 +113,10 @@ function FuseClient.Start()
 
   local sortedControllers = getSortedControllers()
 
-  local startup = initControllers(sortedControllers)
+  local startup = FuseNet.Start()
+    :andThen(function()
+      return initControllers(sortedControllers)
+    end)
     :andThen(function()
       startControllers(sortedControllers)
     end)
@@ -121,6 +125,7 @@ function FuseClient.Start()
 
   return startup
 end
+
 
 --[=[
   Resolves when the server lifecycle is ready.

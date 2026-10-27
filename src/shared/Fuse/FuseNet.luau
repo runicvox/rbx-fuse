@@ -1,24 +1,37 @@
-local RunService = game:GetService("RunService")
+
 --[=[
   @class FuseNet
 
   Manages client-server networking through Jolt.
 ]=]
 
-local Types = require("./Types")
-type Service = Types.Service
+local HttpService = game:GetService("HttpService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 
-local Promise = require("@game/ReplicatedStorage/Packages/promise")
+local Promise = require(ReplicatedStorage.Packages.promise)
 
 local Jolt = require("./Jolt")
+
+local Types = require("./Types")
+type Service = Types.Service
 
 local FuseNet = {}
 
 local EVENT_MARKER = "FUSE_REMOTE_EVENT"
+local MANIFEST_ATTRIBUTE = "RemoteManifest"
 
-local registryFolder = script.Parent
+local IS_SERVER = RunService:IsServer()
 
+local registry = script.Parent
+
+local remotes: {[string]: any} = {}
 local proxies: {[string]: any} = {}
+
+local remoteManifest: {[string]: {[string]: string}} = {}
+local registeredServices: {[string]: boolean} = {}
+
+local startPromise = nil
 
 -- PUBLIC API
 
@@ -32,38 +45,52 @@ function FuseNet.Event(): string
 end
 
 --[=[
-  Creates a named remote event.
+  Creates or retrieves a named remote event.
 
-  @param name string -- Remote identifier.
+  @param remoteName string -- Remote identifier.
   @return any -- Jolt remote.
 ]=]
-function FuseNet.NewEvent(name: string)
-  if RunService:IsServer() then
-    return Jolt.Server(name)
+function FuseNet.NewEvent(remoteName: string)
+  assert(type(remoteName) == "string" and remoteName ~= "", "Invalid remote name.")
+
+  local remote = remotes[remoteName]
+
+  if remote then
+    return remote
   end
 
-  return Jolt.Client(name)
+  -- create a remote for the current environment
+  if IS_SERVER then
+    remote = Jolt.Server(remoteName)
+  else
+    remote = Jolt.Client(remoteName)
+  end
+
+  remotes[remoteName] = remote
+
+  return remote
 end
 
 --[=[
   Creates a named remote method.
 
-  @param name string -- Remote identifier.
+  @param remoteName string -- Remote identifier.
   @param callback function? -- Server callback.
-  @return any -- Jolt remote.
+  @return any -- Remote method.
 ]=]
-function FuseNet.NewMethod(name: string, callback: ((Player, ...any) -> ...any)?)
-  if RunService:IsServer() then
-    local remote = Jolt.Server(name)
+function FuseNet.NewMethod(remoteName: string, callback: ((Player, ...any) -> ...any)?)
+  local remote = FuseNet.NewEvent(remoteName)
+
+  if IS_SERVER then
+    assert(type(callback) == "function", "Remote method requires a callback.")
+
     remote.OnInvoke = callback
 
     return remote
   end
 
-  local remote = Jolt.Client(name)
-
-  -- invoke the remote asynchronously
-  return function(...)
+  -- return a promise-based client method
+  return function(_, ...)
     local args = table.pack(...)
 
     return Promise.try(function()
@@ -78,80 +105,171 @@ end
   @param service Service -- Registered service.
 ]=]
 function FuseNet.CreateServiceRemotes(service: Service)
-  local client = service.Client
+  assert(IS_SERVER, "Service remotes can only be created on the server.")
+  assert(not startPromise, "Cannot create service remotes after networking has started.")
+  assert(not registeredServices[service.Name], `Service "{service.Name}" already has remotes.`)
 
-  -- register each exposed method or event
-  for name, member in client do
-    if name == "Server" then
+  local client = service.Client or {}
+
+  -- reference the original service
+  client.Server = service
+  service.Client = client
+
+  local members: {[string]: string} = {}
+
+  -- register exposed service members
+  for memberName, member in client do
+    if memberName == "Server" then
       continue
     end
 
-    local remoteName = `{service.Name}:{name}`
-    local remoteType
+    assert(type(memberName) == "string" and memberName ~= "", "Invalid client member name.")
+
+    local remoteName = `{service.Name}:{memberName}`
 
     if member == EVENT_MARKER then
-      remoteType = "Event"
-      client[name] = FuseNet.NewEvent(name)
-    elseif type(member) == "function" then
-      remoteType = "Method"
+      members[memberName] = "Event"
 
+      -- replace the marker with its jolt remote
+      client[memberName] = FuseNet.NewEvent(remoteName)
+
+    elseif type(member) == "function" then
+      members[memberName] = "Method"
+
+      -- preserve the client table as self
       FuseNet.NewMethod(remoteName, function(player: Player, ...)
         return member(client, player, ...)
       end)
-    end
 
-    -- publish metadata for client service proxies
-    (registryFolder :: Folder):SetAttribute(remoteName, remoteType)
+    else
+      error(`Invalid client member "{memberName}" in service "{service.Name}".`)
+    end
   end
 
-  (registryFolder :: Folder):SetAttribute(`Service:{service.Name}`, true)
+  -- store the service interface for client discovery
+  remoteManifest[service.Name] = members
+  registeredServices[service.Name] = true
 end
 
 --[=[
   Creates or returns a client-facing service proxy.
 
-  @param name string -- Service name.
+  @param serviceName string -- Service name.
   @return table -- Service proxy.
 ]=]
-function FuseNet.CreateServiceProxy(name: string): any
-  local proxy = proxies[name]
+function FuseNet.CreateServiceProxy(serviceName: string): {[string]: any}
+  assert(not IS_SERVER, "Service proxies are client-only.")
+  assert(remoteManifest ~= nil and startPromise ~= nil, "FuseNet has not started.")
+
+  local proxy = proxies[serviceName]
+
   if proxy then
     return proxy
   end
 
-  assert(
-    registryFolder:GetAttribute(`Service:{name}`) == true,
-    `Service "{name}" does not exist.`
-  )
+  local serviceMembers = remoteManifest[serviceName]
 
-  local members = {}
+  assert(serviceMembers ~= nil, `Service "{serviceName}" does not exist.`)
 
+  local members: {[string]: any} = {}
+
+  -- resolve remote members when accessed
   proxy = setmetatable({}, {
     __index = function(_, memberName: string)
       local member = members[memberName]
+
       if member then
         return member
       end
 
-      local remoteName = `{name}:{memberName}`
-      local remoteType = registryFolder:GetAttribute(remoteName)
+      local remoteType = serviceMembers[memberName]
+      local remoteName = `{serviceName}:{memberName}`
 
       if remoteType == "Event" then
         member = FuseNet.NewEvent(remoteName)
-      elseif remoteType == "Method" then
-        local invoke = FuseNet.NewMethod(remoteName)
 
-        -- discard the proxy passed by colon syntax
-        member = function(_, ...)
-          return invoke(...)
-        end
+      elseif remoteType == "Method" then
+        member = FuseNet.NewMethod(remoteName)
+
+      else
+        error(`Remote "{remoteName}" does not exist.`, 2)
       end
-    end
+
+      members[memberName] = member
+
+      return member
+    end,
   })
 
-  proxies[name] = proxy
+  proxies[serviceName] = proxy
 
   return proxy
+end
+
+--[=[
+  Starts networking and resolves when service interfaces are available.
+
+  @return Promise -- Networking readiness.
+]=]
+function FuseNet.Start()
+  if startPromise then
+    return startPromise
+  end
+
+  if IS_SERVER then
+    -- publish the complete service manifest
+    local encodedManifest = HttpService:JSONEncode(remoteManifest)
+
+    registry:SetAttribute(MANIFEST_ATTRIBUTE, encodedManifest)
+
+    startPromise = Promise.resolve()
+  else
+    startPromise = Promise.new(function(resolve, reject, onCancel)
+      local connection
+
+      local function loadManifest()
+        local encodedManifest = registry:GetAttribute(MANIFEST_ATTRIBUTE)
+
+        if type(encodedManifest) ~= "string" then
+          return
+        end
+
+        -- decode the replicated service interfaces
+        local success, manifest = pcall(function()
+          return HttpService:JSONDecode(encodedManifest)
+        end)
+
+        if not success then
+          if connection then
+            connection:Disconnect()
+          end
+
+          reject(manifest)
+          return
+        end
+
+        remoteManifest = manifest
+
+        if connection then
+          connection:Disconnect()
+        end
+
+        resolve()
+      end
+
+      -- listen for the server's published manifest
+      connection = registry:GetAttributeChangedSignal(MANIFEST_ATTRIBUTE):Connect(loadManifest)
+
+      onCancel(function()
+        connection:Disconnect()
+      end)
+
+      -- handle a manifest that has already replicated
+      loadManifest()
+    end)
+  end
+
+  return startPromise
 end
 
 return FuseNet

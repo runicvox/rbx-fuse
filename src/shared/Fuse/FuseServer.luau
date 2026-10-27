@@ -98,6 +98,7 @@ end
 
   @return Promise -- Server startup.
 ]=]
+
 function FuseServer.Start()
   if started then
     return Promise.reject("FuseServer has already started.")
@@ -107,12 +108,15 @@ function FuseServer.Start()
 
   local sortedServices = getSortedServices()
 
-    -- register client-facing remotes before initialisation
+  -- register remotes before initialisation
   for _, service in sortedServices do
     FuseNet.CreateServiceRemotes(service)
   end
 
   local startup = initServices(sortedServices)
+    :andThen(function()
+      return FuseNet.Start()
+    end)
     :andThen(function()
       startServices(sortedServices)
     end)
@@ -121,6 +125,7 @@ function FuseServer.Start()
 
   return startup
 end
+
 
 --[=[
   Resolves when the server lifecycle is ready.
