@@ -5,7 +5,7 @@
 
 local Fuse = require("@game/ReplicatedStorage/Fuse/FuseClient")
 
-Fuse.AddControllers(script.Parent:WaitForChild("Controllers"))
+Fuse.AddControllers(script.Parent:WaitForChild("Client"))
 
 Fuse.Start()
   :andThen(function()

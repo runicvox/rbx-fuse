@@ -51,6 +51,8 @@ function FuseClient.NewController(def: any): Controller
   -- assign defaults
   controller.Priority = controller.Priority or 0
 
+  controller._type = "Controller"
+
   controllers[controller.Name] = controller
 
   return controller
@@ -92,7 +94,9 @@ function FuseClient.AddControllers(folder: Instance): {Controller}
     end
 
     local controller = require(instance)
-    table.insert(addedControllers, controller)
+    if controller._type == "Controller" then
+      table.insert(addedControllers, controller)
+    end
   end
 
   return addedControllers

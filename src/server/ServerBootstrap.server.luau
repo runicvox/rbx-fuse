@@ -4,7 +4,7 @@
 
 local Fuse = require("@game/ReplicatedStorage/Fuse/FuseServer")
 
-Fuse.AddServices(script.Parent:WaitForChild("Services"))
+Fuse.AddServices(script.Parent:WaitForChild("Server"))
 
 Fuse.Start()
   :andThen(function()

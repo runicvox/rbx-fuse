@@ -56,6 +56,8 @@ function FuseServer.NewService(def: any): Service
   service.Client = service.Client or {}
   service.Client.Server = service
 
+  service._type = "Service"
+
   services[service.Name] = service
 
   return service
@@ -87,7 +89,9 @@ function FuseServer.AddServices(folder: Instance): {Service}
     end
 
     local service = require(instance)
-    table.insert(addedServices, service)
+    if service._type == "Service" then
+      table.insert(addedServices, service)
+    end
   end
 
   return addedServices
