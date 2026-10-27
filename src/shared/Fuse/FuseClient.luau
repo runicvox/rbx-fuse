@@ -11,6 +11,8 @@ type Controller = Types.Controller
 local Promise = require("@game/ReplicatedStorage/Packages/promise")
 local t = require("@game/ReplicatedStorage/Packages/t")
 
+local FuseNet = require("./FuseNet")
+
 local FuseClient = {}
 
 local controllers: {[string]: Controller} = {}
@@ -62,6 +64,16 @@ end
 ]=]
 function FuseClient.GetController(name: string): Controller?
   return controllers[name]
+end
+
+--[=[
+  Returns a client-facing server service.
+
+  @param name string -- Service name.
+  @return table -- Service proxy.
+]=]
+function FuseClient.GetService(name: string)
+  return FuseNet.CreateServiceProxy(name)
 end
 
 --[=[

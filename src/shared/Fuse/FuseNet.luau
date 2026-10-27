@@ -16,7 +16,9 @@ local FuseNet = {}
 
 local EVENT_MARKER = "FUSE_REMOTE_EVENT"
 
-local registryFolder: Folder? = script.Parent
+local registryFolder = script.Parent
+
+local proxies: {[string]: any} = {}
 
 -- PUBLIC API
 
@@ -103,6 +105,53 @@ function FuseNet.CreateServiceRemotes(service: Service)
   end
 
   (registryFolder :: Folder):SetAttribute(`Service:{service.Name}`, true)
+end
+
+--[=[
+  Creates or returns a client-facing service proxy.
+
+  @param name string -- Service name.
+  @return table -- Service proxy.
+]=]
+function FuseNet.CreateServiceProxy(name: string): any
+  local proxy = proxies[name]
+  if proxy then
+    return proxy
+  end
+
+  assert(
+    registryFolder:GetAttribute(`Service:{name}`) == true,
+    `Service "{name}" does not exist.`
+  )
+
+  local members = {}
+
+  proxy = setmetatable({}, {
+    __index = function(_, memberName: string)
+      local member = members[memberName]
+      if member then
+        return member
+      end
+
+      local remoteName = `{name}:{memberName}`
+      local remoteType = registryFolder:GetAttribute(remoteName)
+
+      if remoteType == "Event" then
+        member = FuseNet.NewEvent(remoteName)
+      elseif remoteType == "Method" then
+        local invoke = FuseNet.NewMethod(remoteName)
+
+        -- discard the proxy passed by colon syntax
+        member = function(_, ...)
+          return invoke(...)
+        end
+      end
+    end
+  })
+
+  proxies[name] = proxy
+
+  return proxy
 end
 
 return FuseNet
